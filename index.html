@@ -13,9 +13,13 @@
   <body>
     <header class="bar">
       <a class="brand" href="#" aria-label="FindRebelle">
-        <span class="brand-dot" aria-hidden="true"></span><span>Find<em>Rebelle</em></span>
+        <span class="brand-dot" aria-hidden="true"></span><span id="brand-name">Find<em>Rebelle</em></span>
       </a>
       <div class="controls">
+        <div class="toggle" role="group" aria-label="Couleur de cheveux">
+          <button type="button" data-hair="red" class="on">Rousses</button>
+          <button type="button" data-hair="blond">Blondes</button>
+        </div>
         <label class="field">
           <span>Âge</span>
           <select id="age"></select>
@@ -53,17 +57,20 @@
     <dialog id="welcome" class="modal">
       <form method="dialog">
         <p class="kicker">Bienvenue sur</p>
-        <h1>Find<em>Rebelle</em></h1>
-        <p class="lead">Où vivent le plus de femmes rousses en France ? Choisis une tranche d'âge, puis explore la carte commune par commune.</p>
+        <h1 id="welcome-brand">Find<em>Rebelle</em></h1>
+        <p class="lead" id="welcome-lead"></p>
         <fieldset>
           <legend>Couleur de cheveux</legend>
-          <div class="chips"><span class="chip on hair">Roux</span></div>
+          <div class="chips">
+            <button type="button" class="chip hair red" data-hair="red">Rousses · FindRebelle</button>
+            <button type="button" class="chip hair blond" data-hair="blond">Blondes · FindGolden</button>
+          </div>
         </fieldset>
         <fieldset>
           <legend>Tranche d'âge</legend>
           <div class="chips" id="welcome-ages"></div>
         </fieldset>
-        <p class="fine">Les chiffres sont des <strong>estimations</strong> : population INSEE réelle × hypothèses sur l'âge et la rousseur. Aucune statistique officielle de couleur de cheveux n'existe.</p>
+        <p class="fine">Les chiffres sont des <strong>estimations</strong> : population INSEE réelle × hypothèses sur l'âge et la couleur de cheveux. Aucune statistique officielle de couleur de cheveux n'existe.</p>
         <button class="cta" value="go">Explorer la carte</button>
       </form>
     </dialog>
@@ -84,7 +91,7 @@
               <th scope="col">#</th>
               <th scope="col">Commune</th>
               <th scope="col"><button type="button" data-sort="pop"><span class="long">Habitants</span><span class="short">Hab.</span></button></th>
-              <th scope="col"><button type="button" data-sort="count">Rousses</button></th>
+              <th scope="col"><button type="button" data-sort="count" id="th-count">Rousses</button></th>
               <th scope="col"><button type="button" data-sort="share">% hab.</button></th>
               <th scope="col"><button type="button" data-sort="density">/ km²</button></th>
             </tr>
@@ -100,19 +107,21 @@
       <form method="dialog">
         <h2>Méthode</h2>
         <p>Pour chaque commune de France métropolitaine de 2 000 habitants ou plus (5 395 communes) :</p>
-        <p class="formula">rousses estimées = population × part de femmes × part de la tranche d'âge × taux de rousseur régional</p>
+        <p class="formula">femmes estimées = population × part de femmes × part de la tranche d'âge × taux régional de la couleur de cheveux</p>
         <ul>
           <li><strong>Population</strong> — population légale INSEE par commune (donnée réelle, via le référentiel <code>@etalab/decoupage-administratif</code>).</li>
           <li><strong>Part de femmes</strong> — 51,6 %, moyenne nationale INSEE, appliquée partout.</li>
           <li><strong>Tranche d'âge</strong> — pyramide nationale des femmes (INSEE 2024), corrigée selon la taille de la commune : les villes de 100 000 habitants ou plus comptent environ 1,9 fois plus de 18-24 ans que la moyenne, les petites villes sont plus âgées. <em>Ce n'est pas la structure réelle de chaque commune.</em></li>
-          <li><strong>Taux de rousseur</strong> — 3 % au niveau national (les estimations publiées vont de 2 à 5 %), modulé par région de ×0,6 (Corse) à ×1,5 (Bretagne) selon le gradient nord-ouest / sud-est observé en Europe. <em>Aucune mesure régionale n'existe : c'est une hypothèse.</em></li>
-          <li><strong>Fourchette</strong> — le résultat est affiché avec une fourchette correspondant à un taux national entre 2 % et 5 %.</li>
-          <li><strong>% habitants</strong> — rousses estimées de la tranche divisées par la population totale de la commune (tous âges, hommes compris).</li>
-          <li><strong>Densité</strong> — rousses estimées divisées par la superficie de la commune (contours IGN).</li>
+          <li><strong>Rousses (FindRebelle)</strong> — 3 % au niveau national (les estimations publiées vont de 2 à 5 %), modulé par région de ×0,6 (Corse) à ×1,5 (Bretagne).</li>
+          <li><strong>Blondes (FindGolden)</strong> — 10 % au niveau national (fourchette retenue : 6 à 15 %), modulé par région de ×0,5 (Corse) à ×1,35 (Grand Est), plus élevé au nord et au nord-est.</li>
+          <li><em>Aucune mesure régionale de couleur de cheveux n'existe en France : ces multiplicateurs sont des hypothèses fondées sur le gradient nord / sud observé en Europe.</em> Seules les couleurs naturelles sont visées ; les colorations ne sont pas comptées.</li>
+          <li><strong>Fourchette</strong> — chaque résultat est affiché avec une fourchette qui correspond aux bornes basse et haute du taux national.</li>
+          <li><strong>% habitants</strong> — femmes estimées de la tranche divisées par la population totale de la commune (tous âges, hommes compris).</li>
+          <li><strong>Densité</strong> — femmes estimées divisées par la superficie de la commune (contours IGN).</li>
         </ul>
         <h3>Ce qu'il faut en retenir</h3>
         <p>Le <strong>nombre</strong> dépend surtout de la taille de la ville : les grandes villes arrivent en tête. La <strong>densité</strong> indique où on a le plus de chances d'en croiser une au km². À l'intérieur d'une même région, le pourcentage ne varie qu'avec l'âge et la taille de la commune.</p>
-        <p class="fine">Les tranches suivent le découpage INSEE (25-29, 30-39…). La rousseur naturelle est supposée indépendante de l'âge ; les colorations ne sont pas comptées. Deux communes nouvelles (Orée d'Anjou, Porte des Pierres Dorées) n'ont pas encore de contour publié et sont absentes.</p>
+        <p class="fine">Les tranches suivent le découpage INSEE (25-29, 30-39…). La couleur naturelle est supposée indépendante de l'âge, alors que beaucoup de blondes d'enfance foncent à l'âge adulte : le chiffre des blondes est probablement surestimé. Deux communes nouvelles (Orée d'Anjou, Porte des Pierres Dorées) n'ont pas encore de contour publié et sont absentes.</p>
         <button class="cta" value="close">Fermer</button>
       </form>
     </dialog>

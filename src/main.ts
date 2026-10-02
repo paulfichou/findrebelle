@@ -1,16 +1,27 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './style.css';
-import { AGES, estimate, inTier, parseCommunes, RANGE_HIGH, RANGE_LOW, REGIONS, TIERS, tierOf, type AgeKey, type Commune, type Estimate, type TierKey } from './model';
+import { AGES, estimate, HAIRS, inTier, parseCommunes, range, REGIONS, TIERS, tierOf, type AgeKey, type Commune, type Estimate, type HairKey, type TierKey } from './model';
 
 type Metric = 'count' | 'share' | 'density';
 
-const state: { age: AgeKey; metric: Metric; tier: TierKey } = { age: '25-29', metric: 'count', tier: 'all' };
+const GOLDEN_PATH = '/findgolden';
+const state: { hair: HairKey; age: AgeKey; metric: Metric; tier: TierKey } = {
+  hair: location.pathname.startsWith(GOLDEN_PATH) ? 'blond' : 'red',
+  age: '25-29',
+  metric: 'count',
+  tier: 'all',
+};
 let tableSort: Metric | 'pop' = 'count';
 let tableLimit = 100;
 
 const COMMUNE_MIN_ZOOM = 8;
-const PALETTE = ['#fbe3cf', '#f6bf94', '#ee9a5f', '#de7438', '#bf531e', '#8c3510'];
+const PALETTES: Record<HairKey, string[]> = {
+  red: ['#fbe3cf', '#f6bf94', '#ee9a5f', '#de7438', '#bf531e', '#8c3510'],
+  blond: ['#fbf4d6', '#f6e3a0', '#eecb62', '#ddaa31', '#b8861a', '#87610e'],
+};
+const palette = () => PALETTES[state.hair];
+const hair = () => HAIRS[state.hair];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const fmt = new Intl.NumberFormat('fr-FR');
@@ -27,14 +38,14 @@ function round(n: number): string {
 
 const pctFine = new Intl.NumberFormat('fr-FR', { style: 'percent', minimumFractionDigits: 2, maximumFractionDigits: 3 });
 
-const METRICS: Record<Metric, { rank: string; unit: string; title: string; format: (v: number) => string }> = {
-  count: { rank: 'nombre', unit: 'rousses', title: 'Où il y en a le plus', format: (v) => `≈ ${round(v)}` },
-  share: { rank: '% habitants', unit: '% de la population', title: 'Où la proportion est la plus forte', format: (v) => pctFine.format(v) },
-  density: { rank: 'densité', unit: 'rousses / km²', title: 'Où la densité est la plus forte', format: (v) => `${round(v)}/km²` },
+const METRICS: Record<Metric, { rank: string; unit: () => string; title: string; format: (v: number) => string }> = {
+  count: { rank: 'nombre', unit: () => hair().noun, title: 'Où il y en a le plus', format: (v) => `≈ ${round(v)}` },
+  share: { rank: '% habitants', unit: () => '% de la population', title: 'Où la proportion est la plus forte', format: (v) => pctFine.format(v) },
+  density: { rank: 'densité', unit: () => `${hair().noun} / km²`, title: 'Où la densité est la plus forte', format: (v) => `${round(v)}/km²` },
 };
 
 function value(e: Estimate, metric: Metric) {
-  return metric === 'count' ? e.redheads : metric === 'share' ? e.share : e.density;
+  return metric === 'count' ? e.n : metric === 'share' ? e.share : e.density;
 }
 
 function readHash() {
@@ -47,7 +58,8 @@ function readHash() {
 }
 
 function writeHash() {
-  history.replaceState(null, '', `#age=${encodeURIComponent(state.age)}&m=${state.metric}`);
+  const path = state.hair === 'blond' ? GOLDEN_PATH : '/';
+  history.replaceState(null, '', `${path}#age=${encodeURIComponent(state.age)}&m=${state.metric}`);
 }
 
 // Seuils par quantiles pour que la palette reste lisible quelle que soit la tranche.
@@ -59,7 +71,7 @@ function breaks(values: number[]): number[] {
 function colorFor(v: number, b: number[]) {
   let i = 0;
   while (i < b.length && v > b[i]) i++;
-  return PALETTE[i];
+  return palette()[i];
 }
 
 async function main() {
@@ -96,6 +108,19 @@ async function main() {
     communeLayer.addLayer(m);
   }
 
+  // Identité de l'interface (FindRebelle / FindGolden) selon la couleur choisie.
+  function applyHair() {
+    const h = hair();
+    document.documentElement.dataset.hair = state.hair;
+    document.title = `${h.brand.join('')} — la carte des ${h.noun} en France`;
+    const brand = `${h.brand[0]}<em>${h.brand[1]}</em>`;
+    $('brand-name').innerHTML = brand;
+    $('welcome-brand').innerHTML = brand;
+    $('welcome-lead').textContent = `Où vivent le plus de femmes ${h.noun} en France ? Choisis une tranche d'âge, puis explore la carte commune par commune.`;
+    $('th-count').textContent = h.Noun;
+    document.querySelectorAll<HTMLButtonElement>('[data-hair]').forEach((b) => b.classList.toggle('on', b.dataset.hair === state.hair));
+  }
+
   let estimates = new Map<string, Estimate>();
   let ranking: Commune[] = [];
   let communeBreaks: number[] = [];
@@ -108,15 +133,16 @@ async function main() {
     const tierRank = ranking.filter((x) => inTier(x, tier.key)).indexOf(c) + 1;
     const tierCount = communes.filter((x) => inTier(x, tier.key)).length;
     const ageLabel = AGES.find((a) => a.key === state.age)!.label;
+    const [lo, hi] = range(state.hair);
     const html = `
       <div class="pop">
-        <p class="kicker">${c.dep} · ${REGIONS[c.reg]?.nom ?? ''}</p>
+        <p class="kicker">${c.dep} · ${REGIONS[c.reg] ?? ''}</p>
         <h3>${c.nom}</h3>
-        <p class="big">≈ ${round(e.redheads)} <span>rousses</span></p>
-        <p class="range">fourchette ${round(e.redheads * RANGE_LOW)} – ${round(e.redheads * RANGE_HIGH)}</p>
+        <p class="big">≈ ${round(e.n)} <span>${hair().noun}</span></p>
+        <p class="range">fourchette ${round(e.n * lo)} – ${round(e.n * hi)}</p>
         <dl>
           <dt>Femmes ${ageLabel.toLowerCase()}</dt><dd>≈ ${round(e.women)}</dd>
-          <dt>Taux de rousseur (hyp.)</dt><dd>${pct.format(e.rate)}</dd>
+          <dt>${hair().rateLabel} (hyp.)</dt><dd>${pct.format(e.rate)}</dd>
           <dt>Part des habitants</dt><dd>${pctFine.format(e.share)}</dd>
           <dt>Densité</dt><dd>${round(e.density)} / km²</dd>
           <dt>Population totale</dt><dd>${fmt.format(c.pop)}</dd>
@@ -140,33 +166,34 @@ async function main() {
     const b = communesShown ? communeBreaks : depBreaks;
     const { unit, format } = METRICS[state.metric];
     const f = (v: number) => format(v).replace(/^≈ /, '').replace('/km²', '');
+    const pal = palette();
     $('legend').innerHTML =
-      `<p>${communesShown ? 'Communes' : 'Départements'} · ${unit}</p><div class="scale">` +
-      PALETTE.map((col, i) => {
-        const label = i === 0 ? `≤ ${f(b[0])}` : i === PALETTE.length - 1 ? `> ${f(b[i - 1])}` : `${f(b[i - 1])} – ${f(b[i])}`;
+      `<p>${communesShown ? 'Communes' : 'Départements'} · ${unit()}</p><div class="scale">` +
+      pal.map((col, i) => {
+        const label = i === 0 ? `≤ ${f(b[0])}` : i === pal.length - 1 ? `> ${f(b[i - 1])}` : `${f(b[i - 1])} – ${f(b[i])}`;
         return `<span><i style="background:${col}"></i>${label}</span>`;
       }).join('') +
       '</div>';
   }
 
   function render() {
-    estimates = new Map(communes.map((c) => [c.code, estimate(c, state.age)]));
+    estimates = new Map(communes.map((c) => [c.code, estimate(c, state.age, state.hair)]));
     const v = (c: Commune) => value(estimates.get(c.code)!, state.metric);
     ranking = [...communes].sort((a, b) => v(b) - v(a));
 
     // Communes
     const cb = (communeBreaks = breaks(communes.map(v)));
-    const maxCount = Math.max(...communes.map((c) => estimates.get(c.code)!.redheads));
+    const maxCount = Math.max(...communes.map((c) => estimates.get(c.code)!.n));
     for (const c of communes) {
       const e = estimates.get(c.code)!;
-      markers.get(c.code)!.setStyle({ fillColor: colorFor(v(c), cb) }).setRadius(3 + 22 * Math.sqrt(e.redheads / maxCount));
+      markers.get(c.code)!.setStyle({ fillColor: colorFor(v(c), cb) }).setRadius(3 + 22 * Math.sqrt(e.n / maxCount));
     }
 
     // Départements (agrégat des communes ≥ 2 000 hab.)
     const agg = new Map<string, { n: number; km2: number; pop: number }>();
     for (const c of communes) {
       const a = agg.get(c.dep) ?? { n: 0, km2: 0, pop: 0 };
-      a.n += estimates.get(c.code)!.redheads;
+      a.n += estimates.get(c.code)!.n;
       a.km2 += c.km2;
       a.pop += c.pop;
       agg.set(c.dep, a);
@@ -183,7 +210,7 @@ async function main() {
       (layer as L.Path).setStyle({ fillColor: colorFor(depVal(f.properties.code), db) });
       layer.unbindTooltip();
       layer.bindTooltip(
-        `<strong>${f.properties.nom}</strong><br>≈ ${round(a?.n ?? 0)} rousses · ${pctFine.format(a ? a.n / a.pop : 0)} des habitants · ${round(a ? a.n / a.km2 : 0)} / km²`,
+        `<strong>${f.properties.nom}</strong><br>≈ ${round(a?.n ?? 0)} ${hair().noun} · ${pctFine.format(a ? a.n / a.pop : 0)} des habitants · ${round(a ? a.n / a.km2 : 0)} / km²`,
         { sticky: true },
       );
     });
@@ -191,7 +218,8 @@ async function main() {
 
     // Panneau
     const ageLabel = AGES.find((a) => a.key === state.age)!.label;
-    $('panel-kicker').textContent = `Rousses · ${ageLabel}`;
+    applyHair();
+    $('panel-kicker').textContent = `${hair().Noun} · ${ageLabel}`;
     $('panel-title').textContent = METRICS[state.metric].title;
     const top = $('top');
     top.innerHTML = '';
@@ -207,7 +235,7 @@ async function main() {
     }
     drawLegend();
 
-    document.querySelectorAll<HTMLButtonElement>('.toggle button').forEach((b) => b.classList.toggle('on', b.dataset.metric === state.metric));
+    document.querySelectorAll<HTMLButtonElement>('.toggle button[data-metric]').forEach((b) => b.classList.toggle('on', b.dataset.metric === state.metric));
     ($('age') as HTMLSelectElement).value = state.age;
     map.closePopup();
     writeHash();
@@ -220,7 +248,7 @@ async function main() {
     const key = (c: Commune) => (tableSort === 'pop' ? c.pop : value(estimates.get(c.code)!, tableSort));
     const rows = communes.filter((c) => inTier(c, state.tier)).sort((a, b) => key(b) - key(a));
     const ageLabel = AGES.find((a) => a.key === state.age)!.label;
-    $('ranking-sub').textContent = `${tier.label} · ${tier.range} · ${fmt.format(rows.length)} communes · rousses ${ageLabel.toLowerCase()}`;
+    $('ranking-sub').textContent = `${tier.label} · ${tier.range} · ${fmt.format(rows.length)} communes · ${hair().noun} ${ageLabel.toLowerCase()}`;
     $('ranking-tiers').querySelectorAll<HTMLButtonElement>('button').forEach((b) => b.classList.toggle('on', b.dataset.tier === state.tier));
     document.querySelectorAll<HTMLButtonElement>('#ranking th button').forEach((b) => {
       const on = b.dataset.sort === tableSort;
@@ -234,7 +262,7 @@ async function main() {
         const e = estimates.get(c.code)!;
         return `<tr data-code="${c.code}" tabindex="0"><td>${i + 1}</td><td><span class="nom">${c.nom}</span> <small>${c.dep}</small></td><td>${fmt.format(
           c.pop,
-        )}</td><td>≈ ${round(e.redheads)}</td><td>${pctFine.format(e.share)}</td><td>${round(e.density)}</td></tr>`;
+        )}</td><td>≈ ${round(e.n)}</td><td>${pctFine.format(e.share)}</td><td>${round(e.density)}</td></tr>`;
       })
       .join('');
     $('ranking-more').hidden = rows.length <= tableLimit;
@@ -305,10 +333,19 @@ async function main() {
     render();
   });
 
-  document.querySelectorAll<HTMLButtonElement>('.toggle button').forEach((b) =>
+  document.querySelectorAll<HTMLButtonElement>('.toggle button[data-metric]').forEach((b) =>
     b.addEventListener('click', () => {
       state.metric = b.dataset.metric as Metric;
       render();
+    }),
+  );
+
+  // Rousses / blondes : en-tête (re-calcule la carte) et accueil (aperçu de la marque).
+  document.querySelectorAll<HTMLButtonElement>('[data-hair]').forEach((b) =>
+    b.addEventListener('click', () => {
+      state.hair = b.dataset.hair as HairKey;
+      if (b.closest('#welcome')) applyHair();
+      else render();
     }),
   );
 

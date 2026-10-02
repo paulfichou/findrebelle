@@ -1,7 +1,8 @@
-# FindRebelle
+# FindRebelle · FindGolden
 
-Carte interactive des **estimations** de femmes rousses par commune (≥ 2 000 habitants,
-France métropolitaine) et par tranche d'âge.
+Carte interactive des **estimations** de femmes rousses (FindRebelle, `/`) et blondes
+(FindGolden, `/findgolden`) par commune (≥ 2 000 habitants, France métropolitaine)
+et par tranche d'âge.
 
 ## Stack
 
@@ -21,7 +22,7 @@ Le framework (Vite) est détecté ; `vercel.json` fixe build et sortie.
 
 ## Données et modèle
 
-`rousses = population × 51,6 % femmes × part de la tranche d'âge × taux de rousseur régional`
+`femmes = population × 51,6 % femmes × part de la tranche d'âge × taux régional de la couleur de cheveux`
 
 | Facteur | Statut | Source |
 | --- | --- | --- |
@@ -30,6 +31,7 @@ Le framework (Vite) est détecté ; `vercel.json` fixe build et sortie.
 | Part de femmes | moyenne nationale | INSEE |
 | Part de la tranche d'âge | **modélisée** (pyramide nationale × correctif taille de ville) | INSEE 2024 |
 | Taux de rousseur | **hypothèse** (3 % national, ×0,6 à ×1,5 par région) | aucune mesure officielle |
+| Taux de blondeur | **hypothèse** (10 % national, ×0,5 à ×1,35 par région) | aucune mesure officielle |
 
 Tous les paramètres modifiables sont dans `src/model.ts`.
 

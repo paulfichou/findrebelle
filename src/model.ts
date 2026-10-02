@@ -1,9 +1,9 @@
 // Modèle d'estimation FindRebelle.
 //
-// rousses estimées = population légale (INSEE, réelle)
+// femmes estimées = population légale (INSEE, réelle)
 //                  × part de femmes
 //                  × part de la tranche d'âge (selon la taille de la commune)
-//                  × taux de rousseur régional (hypothèse)
+//                  × taux régional de la couleur de cheveux (hypothèse)
 //
 // Seule la population est une donnée mesurée. Les trois autres facteurs sont
 // des hypothèses documentées dans la page « Méthode » et modifiables ici.
@@ -68,51 +68,81 @@ export function ageShare(pop: number, age: AgeKey): number {
   return NATIONAL_AGE_SHARE[age] * f[age];
 }
 
-/** Taux national de rousseur naturelle retenu (estimations publiées : 2 à 5 %). */
-export const NATIONAL_RED_RATE = 0.03;
+export type HairKey = 'red' | 'blond';
 
-/**
- * Multiplicateurs régionaux (codes région INSEE 2016). Hypothèse : gradient
- * nord-ouest → sud-est, cohérent avec la répartition européenne des variants
- * MC1R. Aucune mesure par région n'existe en France.
- */
-export const REGIONS: Record<string, { nom: string; k: number }> = {
-  '53': { nom: 'Bretagne', k: 1.5 },
-  '28': { nom: 'Normandie', k: 1.3 },
-  '32': { nom: 'Hauts-de-France', k: 1.2 },
-  '52': { nom: 'Pays de la Loire', k: 1.15 },
-  '44': { nom: 'Grand Est', k: 1.1 },
-  '24': { nom: 'Centre-Val de Loire', k: 1.0 },
-  '27': { nom: 'Bourgogne-Franche-Comté', k: 1.0 },
-  '75': { nom: 'Nouvelle-Aquitaine', k: 0.95 },
-  '11': { nom: 'Île-de-France', k: 0.9 },
-  '84': { nom: 'Auvergne-Rhône-Alpes', k: 0.9 },
-  '76': { nom: 'Occitanie', k: 0.8 },
-  '93': { nom: "Provence-Alpes-Côte d'Azur", k: 0.75 },
-  '94': { nom: 'Corse', k: 0.6 },
+export const REGIONS: Record<string, string> = {
+  '11': 'Île-de-France',
+  '24': 'Centre-Val de Loire',
+  '27': 'Bourgogne-Franche-Comté',
+  '28': 'Normandie',
+  '32': 'Hauts-de-France',
+  '44': 'Grand Est',
+  '52': 'Pays de la Loire',
+  '53': 'Bretagne',
+  '75': 'Nouvelle-Aquitaine',
+  '76': 'Occitanie',
+  '84': 'Auvergne-Rhône-Alpes',
+  '93': "Provence-Alpes-Côte d'Azur",
+  '94': 'Corse',
 };
 
-export function redRate(reg: string): number {
-  return NATIONAL_RED_RATE * (REGIONS[reg]?.k ?? 1);
+/**
+ * Paramètres par couleur de cheveux (naturelle). Aucune mesure officielle par
+ * région n'existe en France : taux national tiré des estimations publiées,
+ * multiplicateurs régionaux = hypothèse de gradient nord-ouest / nord-est → sud.
+ */
+export const HAIRS: Record<
+  HairKey,
+  { brand: [string, string]; label: string; noun: string; Noun: string; rateLabel: string; national: number; low: number; high: number; k: Record<string, number> }
+> = {
+  red: {
+    brand: ['Find', 'Rebelle'],
+    label: 'Rousses',
+    noun: 'rousses',
+    Noun: 'Rousses',
+    rateLabel: 'Taux de rousseur',
+    national: 0.03, // estimations publiées : 2 à 5 %
+    low: 0.02,
+    high: 0.05,
+    k: { '53': 1.5, '28': 1.3, '32': 1.2, '52': 1.15, '44': 1.1, '24': 1.0, '27': 1.0, '75': 0.95, '11': 0.9, '84': 0.9, '76': 0.8, '93': 0.75, '94': 0.6 },
+  },
+  blond: {
+    brand: ['Find', 'Golden'],
+    label: 'Blondes',
+    noun: 'blondes',
+    Noun: 'Blondes',
+    rateLabel: 'Taux de blondeur',
+    national: 0.1, // estimation publiée : environ 10 % ; fourchette 6 à 15 %
+    low: 0.06,
+    high: 0.15,
+    k: { '44': 1.35, '32': 1.3, '28': 1.25, '53': 1.15, '27': 1.1, '52': 1.05, '24': 1.0, '84': 0.95, '11': 0.9, '75': 0.9, '76': 0.75, '93': 0.7, '94': 0.5 },
+  },
+};
+
+export function hairRate(hair: HairKey, reg: string): number {
+  const h = HAIRS[hair];
+  return h.national * (h.k[reg] ?? 1);
 }
 
-/** Bornes de la fourchette affichée (incertitude sur le taux : 2 % à 5 % national). */
-export const RANGE_LOW = 2 / 3;
-export const RANGE_HIGH = 5 / 3;
+/** Bornes de la fourchette affichée (incertitude sur le taux national). */
+export function range(hair: HairKey): [number, number] {
+  const h = HAIRS[hair];
+  return [h.low / h.national, h.high / h.national];
+}
 
 export type Estimate = {
   women: number; // femmes de la tranche
-  redheads: number; // rousses estimées
+  n: number; // femmes estimées avec cette couleur de cheveux
   rate: number; // taux de rousseur
-  density: number; // rousses / km²
-  share: number; // rousses / population totale de la commune
+  density: number; // n / km²
+  share: number; // n / population totale de la commune
 };
 
-export function estimate(c: Commune, age: AgeKey): Estimate {
+export function estimate(c: Commune, age: AgeKey, hair: HairKey): Estimate {
   const women = c.pop * FEMALE_SHARE * ageShare(c.pop, age);
-  const rate = redRate(c.reg);
-  const redheads = women * rate;
-  return { women, redheads, rate, density: redheads / c.km2, share: redheads / c.pop };
+  const rate = hairRate(hair, c.reg);
+  const n = women * rate;
+  return { women, n, rate, density: n / c.km2, share: n / c.pop };
 }
 
 export function parseCommunes(rows: [string, string, string, string, number, number, number, number][]): Commune[] {
