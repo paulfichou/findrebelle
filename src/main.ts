@@ -91,14 +91,19 @@ async function main() {
   // ---- Carte -------------------------------------------------------------
   const map = L.map('map', { zoomControl: false, minZoom: 5, maxZoom: 15, preferCanvas: true }).setView([46.6, 2.4], 6);
   L.control.zoom({ position: 'topleft' }).addTo(map);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO · Population INSEE · Contours IGN',
-    subdomains: 'abcd',
-    maxZoom: 19,
-  }).addTo(map);
+  // Fond de carte : Plan IGN v2 (Géoplateforme de l'IGN), gratuit, sans clé ni filigrane.
+  L.tileLayer(
+    'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2' +
+      '&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+    {
+      attribution: '&copy; <a href="https://www.ign.fr/">IGN</a> Plan IGN · Population INSEE · Contours IGN',
+      minZoom: 0,
+      maxZoom: 18,
+    },
+  ).addTo(map);
 
   const renderer = L.canvas({ padding: 0.5 });
-  const depLayer = L.geoJSON(depsGeo, { style: { weight: 1, color: '#2a1d17', fillOpacity: 0.7 } }).addTo(map);
+  const depLayer = L.geoJSON(depsGeo, { style: { weight: 1, color: '#5a4636', fillOpacity: 0.55 } }).addTo(map);
   const communeLayer = L.layerGroup();
   const markers = new Map<string, L.CircleMarker>();
   for (const c of communes) {
@@ -158,7 +163,7 @@ async function main() {
     const z = map.getZoom();
     if (z >= COMMUNE_MIN_ZOOM - 1) communeLayer.addTo(map);
     else communeLayer.remove();
-    depLayer.setStyle({ fillOpacity: z >= COMMUNE_MIN_ZOOM - 1 ? 0.18 : 0.75 });
+    depLayer.setStyle({ fillOpacity: z >= COMMUNE_MIN_ZOOM - 1 ? 0.05 : 0.5 });
   }
 
   function drawLegend() {
